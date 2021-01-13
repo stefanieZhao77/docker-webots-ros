@@ -1,5 +1,6 @@
 FROM dorowu/ubuntu-desktop-lxde-vnc:bionic
 
+
 # Fix dirmngr
 RUN apt-get purge dirmngr -y && apt-get update && apt-get install dirmngr -y
 RUN apt-get dist-upgrade -y
@@ -16,17 +17,17 @@ RUN apt-get install -y python-rosinstall python-rosinstall-generator python-wsto
 RUN apt-get install vim -y
 RUN rosdep init && rosdep update
 
-RUN mkdir -p /root/ws_tmp /root/Desktop && ln -s /usr/share/applications/lxterminal.desktop /root/Desktop/lxterminal.desktop
+RUN mkdir -p /root/catkin_ws/src /root/Desktop && ln -s /usr/share/applications/lxterminal.desktop /root/Desktop/lxterminal.desktop
 ENV ROS_DISTRO=melodic
 
 RUN /bin/bash -c "echo -e 'umask 000\n \
       source /opt/ros/melodic/setup.bash\n \
       cd /root/Desktop/ros_ws/\n' >> /root/.bashrc "
 
-WORKDIR /root/ws_tmp
+WORKDIR /root/catkin_ws
 # COPY vnc/copyws.sh /root/copyws.sh
 # RUN chmod a+x /root/copyws.sh
-COPY ./src /root/ws_tmp/src
+# COPY ./src ~/catkin_ws/src
 
 RUN apt-get update && rosdep install --from-paths . -r -y
 
@@ -34,22 +35,27 @@ RUN catkin config \
       --extend /opt/ros/melodic
 
 # install webots
-ARG WEBOTS_VERSION=R2020b-rev1
 
-RUN apt update && apt install --yes wget
+# Determine Webots version to be used and set default argument
+ARG WEBOTS_VERSION=R2021a
+
+
+# Install Webots runtime dependencies
+RUN apt update && apt install --yes wget && rm -rf /var/lib/apt/lists/
 RUN wget https://raw.githubusercontent.com/cyberbotics/webots/master/scripts/install/linux_runtime_dependencies.sh
-RUN chmod +x linux_runtime_dependencies.sh
-RUN ./linux_runtime_dependencies.sh
-RUN rm ./linux_runtime_dependencies.sh
+RUN chmod +x linux_runtime_dependencies.sh && ./linux_runtime_dependencies.sh && rm ./linux_runtime_dependencies.sh && rm -rf /var/lib/apt/lists/
 
-RUN apt install --yes xvfb
+# Install X virtual framebuffer to be able to use Webots without GPU and GUI (e.g. CI)
+RUN apt update && apt install --yes xvfb && rm -rf /var/lib/apt/lists/
 
+# Install Webots
 WORKDIR /usr/local
-RUN wget https://github.com/cyberbotics/webots/releases/download/$WEBOTS_VERSION/webots-$WEBOTS_VERSION-x86-64_ubuntu-16.04.tar.bz2
-RUN tar xjf webots-$WEBOTS_VERSION-x86-64_ubuntu-16.04.tar.bz2
-RUN rm webots-$WEBOTS_VERSION-x86-64_ubuntu-16.04.tar.bz2
-RUN sed -i 's/"$webots_home\/bin\/webots-bin" "$@"/"$webots_home\/bin\/webots-bin" --no-sandbox "$@"/g' /usr/local/webots/webots
-ENV WEBOTS_HOME /usr/local
+RUN wget https://github.com/cyberbotics/webots/releases/download/$WEBOTS_VERSION/webots-$WEBOTS_VERSION-x86-64_ubuntu-18.04.tar.bz2
+RUN tar xjf webots-*.tar.bz2 && rm webots-*.tar.bz2
+ENV QTWEBENGINE_DISABLE_SANDBOX=1
+ENV WEBOTS_HOME /usr/local/webots
 ENV PATH /usr/local/webots:${PATH}
+ENV LD_LIBRARY_PATH ${WEBOTS_HOME}/lib/controller
+ENV PYTHONPATH ${WEBOTS_HOME}/lib/controller/python36
 
-RUN apt-get install ros-melodic-webots-ros
+RUN sudo apt-get update && apt-get install ros-melodic-webots-ros
