@@ -34,6 +34,9 @@ RUN apt-get update && rosdep install --from-paths . -r -y
 RUN catkin config \
       --extend /opt/ros/melodic
 
+# Install Moveit
+RUN apt install ros-melodic-moveit
+
 # install webots
 
 # Determine Webots version to be used and set default argument
